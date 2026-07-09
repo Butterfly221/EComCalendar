@@ -5,6 +5,7 @@
 """
 
 import logging
+import re
 from datetime import date, datetime, timedelta
 
 from telegram import Update
@@ -116,15 +117,40 @@ async def cmd_create_meeting(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if len(context.args) < 4:
         await update.message.reply_text(
             "❌ Использование: /create_meeting название DD.MM.YYYY HH:MM длит_мин id1,id2,...\n"
-            "Пример: /create_meeting Standup 15.01.2026 10:00 30 1,2"
+            "Пример: /create_meeting Созвон с клиентом 15.01.2026 10:00 30 1,2"
         )
         return
 
-    title = context.args[0]
-    date_str = context.args[1]
-    time_str = context.args[2]
-    duration_str = context.args[3]
-    participant_str = context.args[4] if len(context.args) > 4 else ""
+    # Ищем аргумент, похожий на DD.MM.YYYY — это начало разбора даты и остальных параметров
+    date_pattern = re.compile(r"^\d{2}\.\d{2}\.\d{4}$")
+    date_idx = None
+    for i, arg in enumerate(context.args):
+        if date_pattern.match(arg):
+            date_idx = i
+            break
+
+    if date_idx is None:
+        await update.message.reply_text(
+            "❌ Не найден аргумент с датой. Укажите дату в формате DD.MM.YYYY\n"
+            "Пример: /create_meeting Созвон с клиентом 15.01.2026 10:00 30 1,2"
+        )
+        return
+
+    # Всё до date_idx — название (может быть из нескольких слов)
+    title = " ".join(context.args[:date_idx])
+
+    # После date_idx: дата, время, длительность, участники
+    date_str = context.args[date_idx]
+    try:
+        time_str = context.args[date_idx + 1]
+        duration_str = context.args[date_idx + 2]
+        participant_str = context.args[date_idx + 3] if len(context.args) > date_idx + 3 else ""
+    except IndexError:
+        await update.message.reply_text(
+            "❌ Недостаточно аргументов. Пример:\n"
+            "/create_meeting Созвон с клиентом 15.01.2026 10:00 30 1,2"
+        )
+        return
 
     try:
         start_dt = datetime.strptime(f"{date_str} {time_str}", DATETIME_FMT)
@@ -134,7 +160,7 @@ async def cmd_create_meeting(update: Update, context: ContextTypes.DEFAULT_TYPE)
     except (ValueError, IndexError):
         await update.message.reply_text(
             "❌ Неверный формат. Пример:\n"
-            "/create_meeting Standup 15.01.2026 10:00 30 1,2"
+            "/create_meeting Созвон с клиентом 15.01.2026 10:00 30 1,2"
         )
         return
 

@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.datefmt import DATETIME_FMT
 from app.models import Employee, Meeting, meeting_participant
 
 
@@ -67,6 +68,8 @@ async def has_conflict(
     names = ", ".join(employees.get(pid, f"id={pid}") for pid in conflicted_employee_ids)
     return (
         True,
-        f"У сотрудника(ов) {names} уже есть встреча "
-        f"'{first_conflict.title}' ({first_conflict.start_time} — {first_conflict.end_time})",
+                f"У сотрудника(ов) {names} уже есть встреча "
+        f"'{first_conflict.title}' "
+        f"({first_conflict.start_time.strftime(DATETIME_FMT)} — "
+        f"{first_conflict.end_time.strftime(DATETIME_FMT)})",
     )
