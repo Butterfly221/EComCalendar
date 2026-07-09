@@ -29,8 +29,8 @@ async def test_render_meeting():
     result = await _render_meeting(meeting)
 
     assert "Standup" in result
-    assert "2026-01-15 10:00" in result
-    assert "10:30" in result
+    assert "15.01.2026 10:00" in result
+    assert "15.01.2026 10:30" in result
     assert "Alice" in result
     assert "Bob" in result
     assert "42" in result

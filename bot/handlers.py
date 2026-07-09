@@ -23,7 +23,8 @@ from app.schemas import EmployeeCreate, MeetingCreate
 
 logger = logging.getLogger(__name__)
 
-DATETIME_FMT = "%Y-%m-%d %H:%M"
+DATETIME_FMT = "%d.%m.%Y %H:%M"
+DATE_FMT = "%d.%m.%Y"
 
 
 # ── Вспомогательные функции ─────────────────────────────────
@@ -56,9 +57,9 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "Доступные команды:\n"
         "/employees — список сотрудников\n"
         "/create_employee имя email — создать сотрудника\n"
-        "/create_meeting название YYYY-MM-DD HH:MM длит_мин id1,id2,... — создать встречу\n"
-        "/meetings YYYY-MM-DD — встречи на день\n"
-        "/week YYYY-MM-DD — встречи на неделю (понедельник)\n"
+        "/create_meeting название DD.MM.YYYY HH:MM длит_мин id1,id2,... — создать встречу\n"
+        "/meetings DD.MM.YYYY — встречи на день (без даты — сегодня)\n"
+        "/week DD.MM.YYYY — встречи на неделю (без даты — текущая)\n"
         "/my_meetings employee_id — встречи сотрудника\n"
         "/help — эта справка"
     )
@@ -111,11 +112,11 @@ async def cmd_create_employee(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def cmd_create_meeting(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Создать встречу: /create_meeting Название 2026-01-15 10:00 30 1,2"""
+    """Создать встречу: /create_meeting Название 15.01.2026 10:00 30 1,2"""
     if len(context.args) < 4:
         await update.message.reply_text(
-            "❌ Использование: /create_meeting название YYYY-MM-DD HH:MM длит_мин id1,id2,...\n"
-            "Пример: /create_meeting Standup 2026-01-15 10:00 30 1,2"
+            "❌ Использование: /create_meeting название DD.MM.YYYY HH:MM длит_мин id1,id2,...\n"
+            "Пример: /create_meeting Standup 15.01.2026 10:00 30 1,2"
         )
         return
 
@@ -133,7 +134,7 @@ async def cmd_create_meeting(update: Update, context: ContextTypes.DEFAULT_TYPE)
     except (ValueError, IndexError):
         await update.message.reply_text(
             "❌ Неверный формат. Пример:\n"
-            "/create_meeting Standup 2026-01-15 10:00 30 1,2"
+            "/create_meeting Standup 15.01.2026 10:00 30 1,2"
         )
         return
 
@@ -165,43 +166,46 @@ async def cmd_create_meeting(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def cmd_meetings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Встречи на день: /meetings 2026-01-15"""
+    """Встречи на день: /meetings или /meetings 15.01.2026"""
     if not context.args:
         day = date.today()
     else:
         try:
-            day = datetime.strptime(context.args[0], "%Y-%m-%d").date()
+            day = datetime.strptime(context.args[0], DATE_FMT).date()
         except ValueError:
-            await update.message.reply_text("❌ Неверный формат даты. Используйте YYYY-MM-DD")
+            await update.message.reply_text("❌ Неверный формат даты. Используйте DD.MM.YYYY")
             return
 
     async with async_session_factory() as db:
         meetings = await get_meetings_for_day(db, day)
 
     if not meetings:
-        await update.message.reply_text(f"📭 На {day} встреч нет.")
+        await update.message.reply_text(f"📭 На {day.strftime(DATE_FMT)} встреч нет.")
         return
 
     lines = [await _render_meeting(m) for m in meetings]
     await update.message.reply_text(
-        f"📋 <b>Встречи на {day}:</b>\n\n" + "\n\n".join(lines),
+        f"📋 <b>Встречи на {day.strftime(DATE_FMT)}:</b>\n\n" + "\n\n".join(lines),
         parse_mode="HTML",
     )
 
 
 async def cmd_week(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Встречи на неделю: /week 2026-01-12 (понедельник)"""
+    """Встречи на текущую календарную неделю: /week.
+    Можно указать дату любого дня недели: /week 15.01.2026"""
     if not context.args:
-        await update.message.reply_text(
-            "❌ Укажите дату понедельника: /week 2026-01-12"
-        )
-        return
-
-    try:
-        week_start = datetime.strptime(context.args[0], "%Y-%m-%d").date()
-    except ValueError:
-        await update.message.reply_text("❌ Неверный формат даты. Используйте YYYY-MM-DD")
-        return
+        today = date.today()
+        week_start = today - timedelta(days=today.weekday())  # понедельник
+    else:
+        try:
+            parsed = datetime.strptime(context.args[0], DATE_FMT).date()
+            week_start = parsed - timedelta(days=parsed.weekday())
+        except ValueError:
+            await update.message.reply_text(
+                "❌ Неверный формат даты. Используйте DD.MM.YYYY\n"
+                "Пример: /week 15.01.2026"
+            )
+            return
 
     week_end = week_start + timedelta(days=6)
 
@@ -209,7 +213,9 @@ async def cmd_week(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         meetings = await get_meetings_for_week(db, week_start)
 
     if not meetings:
-        await update.message.reply_text(f"📭 На неделю {week_start} — {week_end} встреч нет.")
+        await update.message.reply_text(
+            f"📭 На неделю {week_start.strftime(DATE_FMT)} — {week_end.strftime(DATE_FMT)} встреч нет."
+        )
         return
 
     # Группируем по дням
@@ -218,11 +224,11 @@ async def cmd_week(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         d = m.start_time.date()
         by_day.setdefault(d, []).append(m)
 
-    parts = [f"📋 <b>Неделя {week_start} — {week_end}</b>"]
+    parts = [f"📋 <b>Неделя {week_start.strftime(DATE_FMT)} — {week_end.strftime(DATE_FMT)}</b>"]
     for d in sorted(by_day.keys()):
         day_meetings = by_day[d]
         day_lines = [await _render_meeting(m) for m in day_meetings]
-        parts.append(f"\n<b>{d}:</b>")
+        parts.append(f"\n<b>{d.strftime(DATE_FMT)}:</b>")
         parts.extend(day_lines)
 
     await update.message.reply_text("\n\n".join(parts), parse_mode="HTML")
