@@ -55,11 +55,11 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "👋 <b>Meeting Scheduler Bot</b>\n\n"
         "Доступные команды:\n"
         "/employees — список сотрудников\n"
-        "/create_employee <имя> <email> — создать сотрудника\n"
-        "/create_meeting <название> <YYYY-MM-DD HH:MM> <длительность_мин> <id1,id2,...> — создать встречу\n"
-        "/meetings <YYYY-MM-DD> — встречи на день\n"
-        "/week <YYYY-MM-DD> — встречи на неделю (понедельник)\n"
-        "/my_meetings <employee_id> — встречи сотрудника\n"
+        "/create_employee имя email — создать сотрудника\n"
+        "/create_meeting название YYYY-MM-DD HH:MM длит_мин id1,id2,... — создать встречу\n"
+        "/meetings YYYY-MM-DD — встречи на день\n"
+        "/week YYYY-MM-DD — встречи на неделю (понедельник)\n"
+        "/my_meetings employee_id — встречи сотрудника\n"
         "/help — эта справка"
     )
     await update.message.reply_text(text, parse_mode="HTML")
@@ -89,7 +89,8 @@ async def cmd_create_employee(update: Update, context: ContextTypes.DEFAULT_TYPE
     """Создать сотрудника: /create_employee Имя email@example.com"""
     if len(context.args) < 2:
         await update.message.reply_text(
-            "❌ Использование: /create_employee <имя> <email>\n"
+
+            "❌ Использование: /create_employee имя email\n"
             "Пример: /create_employee Alice alice@example.com"
         )
         return
@@ -113,7 +114,7 @@ async def cmd_create_meeting(update: Update, context: ContextTypes.DEFAULT_TYPE)
     """Создать встречу: /create_meeting Название 2026-01-15 10:00 30 1,2"""
     if len(context.args) < 4:
         await update.message.reply_text(
-            "❌ Использование: /create_meeting <название> <YYYY-MM-DD HH:MM> <длительность_мин> <id1,id2,...>\n"
+            "❌ Использование: /create_meeting название YYYY-MM-DD HH:MM длит_мин id1,id2,...\n"
             "Пример: /create_meeting Standup 2026-01-15 10:00 30 1,2"
         )
         return
@@ -230,7 +231,7 @@ async def cmd_week(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def cmd_my_meetings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Встречи сотрудника: /my_meetings 1"""
     if not context.args:
-        await update.message.reply_text("❌ Использование: /my_meetings <employee_id>")
+        await update.message.reply_text("❌ Использование: /my_meetings employee_id")
         return
 
     try:
